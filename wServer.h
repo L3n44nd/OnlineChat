@@ -2,10 +2,6 @@
 
 #include <QtNetwork/qtcpserver.h>
 #include <QtNetwork/qtcpsocket.h>
-#include <QtWidgets/QWidget>
-#include <QPushButton>
-#include <QTextEdit>
-#include <QVBoxLayout>
 #include <QString>
 #include <QtSql>
 #include "ui_wServer.h"
@@ -43,6 +39,6 @@ private:
     void handleChatMsg(QTcpSocket* client, QString msg);
     void handlePrivateMsg(QTcpSocket* client, QString msg); 
     void handleLogout(QTcpSocket* client, QString msg);
+    QString generateSalt();
 };
-
 
