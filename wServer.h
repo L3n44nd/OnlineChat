@@ -27,10 +27,9 @@ private:
     QTcpServer server;
     Ui::wServerClass ui;
 
-    QHash<QTcpSocket*, QString> clients;
-    QHash<QString, QTcpSocket*> clientToSocket;
-    QHash<QString, std::function<void(QTcpSocket*, const QString&)>> commandsHandler;
-    QSet<QString> nameSet;
+    QHash<QTcpSocket*, int> socketToId;
+    QHash<int, QTcpSocket*> idToSocket;
+    QHash<int, QString> idToName;
 
     void setupDB();
     void setupUI();
@@ -45,4 +44,5 @@ private:
     void handlePrivateMsg(QTcpSocket* client, QString msg); 
     void handleLogout(QTcpSocket* client, QString msg);
 };
+
 
