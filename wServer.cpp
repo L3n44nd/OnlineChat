@@ -100,13 +100,16 @@ void wServerClass::handleRegistration(QTcpSocket* client, QString msg) {
     int respCode = -1;
 
     if (checkQuery.next() && checkQuery.value(0).toInt() == 0) {
-        QByteArray byteArrayPswHash = QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256);
-        QString strPswHash = byteArrayPswHash.toHex();
+        QString salt = generateSalt();
+        QString strToHash = password + salt;
+        QByteArray bArrHashedStr = QCryptographicHash::hash(strToHash.toUtf8(), QCryptographicHash::Sha256);
+        QString strHashed = bArrHashedStr.toHex();
 
         QSqlQuery regQuery;
-        regQuery.prepare("INSERT INTO users (username, password) VALUES (:name, :psw)");
+        regQuery.prepare("INSERT INTO users (username, password, salt) VALUES (:name, :psw, :slt)");
         regQuery.bindValue(":name", username);
-        regQuery.bindValue(":psw", strPswHash);
+        regQuery.bindValue(":psw", strHashed);
+        regQuery.bindValue(":slt", salt);
         regQuery.exec();
 
         int userId = regQuery.lastInsertId().toInt();
@@ -129,30 +132,25 @@ void wServerClass::handleLogin(QTcpSocket* client, QString msg) {
     QString username = msgParts[0];
     QString password = msgParts[1];
 
-    QByteArray byteArrayPswHash = QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256);
-    QString strPswHash = byteArrayPswHash.toHex();
-
     int respCode = -1;
 
-    QSqlQuery checkPassQuery;
-    checkPassQuery.prepare("SELECT password FROM users WHERE username = :name");
-    checkPassQuery.bindValue(":name", username);
-    checkPassQuery.exec();
+    QSqlQuery checkDataQuery;
+    checkDataQuery.prepare("SELECT password, salt, id FROM users WHERE username = :name");
+    checkDataQuery.bindValue(":name", username);
+    checkDataQuery.exec();
 
-    if (checkPassQuery.next()) {
-        QString hashFromDB = checkPassQuery.value(0).toString();
-        if (strPswHash == hashFromDB) {
-            QSqlQuery idQuery; 
-            idQuery.prepare("SELECT id FROM users WHERE username = :name");
-            idQuery.bindValue(":name", username);
-            idQuery.exec();
+    if (checkDataQuery.next()) {
+        QString hashFromDB = checkDataQuery.value(0).toString();
+        QString saltFromDB = checkDataQuery.value(1).toString();
+        int userId = checkDataQuery.value(2).toInt();
 
-            idQuery.next();
-            int userId = idQuery.value(0).toInt();
+        QByteArray bArrHash = QCryptographicHash::hash((password + saltFromDB).toUtf8(), QCryptographicHash::Sha256);
+        QString hashedStr = bArrHash.toHex();
+
+        if (hashedStr == hashFromDB) {
             idToName[userId] = std::move(username);
             idToSocket[userId] = client;
             socketToId[client] = userId;
-
             respCode = static_cast<int>(serverResponse::LoginOK);
         }
         else respCode = static_cast<int>(serverResponse::WrongPassword);
@@ -220,6 +218,12 @@ void wServerClass::handlePrivateMsg(QTcpSocket* client, QString msg) {
 
 void wServerClass::handleLogout(QTcpSocket* client, QString msg) {
     client->disconnectFromHost();
+}
+
+QString wServerClass::generateSalt() {
+    QByteArray salt(16, Qt::Uninitialized);
+    QRandomGenerator::global()->generate(salt.begin(), salt.end());
+    return salt.toHex();
 }
 
 wServerClass::~wServerClass()
