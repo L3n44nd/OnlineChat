@@ -13,25 +13,27 @@ enum class clientQuery {
 };
 
 enum class serverResponse {
-	OK,
+	Successful,
 	Registered, 
 	LoginOK,
 	WrongPassword,
 	UserNotFound,
 	UsernameExists,
-	Message
+	Message, 
+	PrivateMessage
 };
 
 inline const char* toStr(serverResponse resp) {
 	switch (resp) {
-	case serverResponse::OK: return "OK";
-	case serverResponse::Registered: return "Registration successful";
-	case serverResponse::LoginOK: return "Login successful";
-	case serverResponse::WrongPassword: return "Wrong password";
-	case serverResponse::UserNotFound: return "User not found";
-	case serverResponse::UsernameExists: return "Username exists";
-	default: return "Unknown response";
+	case serverResponse::Successful: return "Имя изменено";
+	case serverResponse::Registered: return "Регистрация успешна";
+	case serverResponse::LoginOK: return "Вход выполнен";
+	case serverResponse::WrongPassword: return "Неверный пароль";
+	case serverResponse::UserNotFound: return "Пользователь не найден";
+	case serverResponse::UsernameExists: return "Имя занято";
+	default: return "Неизвестный код ответа";
 	}
 }
 
 #endif // !PROTOCOL_H
+
