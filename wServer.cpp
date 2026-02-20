@@ -5,8 +5,8 @@ wServerClass::wServerClass(QWidget* parent)
     : QWidget(parent) {
 
         setupDB();
-        setupUI();
         setupServer();
+        ui.setupUi(this);
     }
 
 void wServerClass::setupDB() {
@@ -24,12 +24,6 @@ void wServerClass::setupDB() {
         "password TEXT,"
         "salt TEXT)"
     );
-}
-
-void wServerClass::setupUI() {
-    ui.setupUi(this);
-    ui.oField->setReadOnly(true);
-    ui.onlineField->setReadOnly(true);
 }
 
 void wServerClass::setupServer() {    
@@ -270,3 +264,4 @@ wServerClass::~wServerClass() {
     idToSocket.clear();
     idToName.clear();
 }
+
