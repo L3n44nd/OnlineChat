@@ -6,6 +6,7 @@ wServerClass::wServerClass(QWidget* parent)
 
         setupDB();
         setupServer();
+        setupTimer();
         ui.setupUi(this);
     }
 
@@ -31,16 +32,27 @@ void wServerClass::setupServer() {
     connect(&server, &QTcpServer::newConnection, this, &wServerClass::onNewConnection);
 }
 
+void wServerClass::setupTimer() {
+    updateOnlineNum = new QTimer(this);
+    updateOnlineNum->setInterval(5000);
+    updateOnlineNum->start();
+
+    connect(updateOnlineNum, &QTimer::timeout, this, [this]() {
+        ui.onlineField->setText(QString::number(socketToId.size()));
+        });
+}
+
 void wServerClass::onNewConnection() {
-    QTcpSocket* newClient = server.nextPendingConnection();
+    QTcpSocket* newClient = server.nextPendingConnection(); 
+    int descr = newClient->socketDescriptor();
     connect(newClient, &QTcpSocket::readyRead, this, [this, newClient]() {
         processClientMsg(newClient);
         });
 
-    connect(newClient, &QTcpSocket::disconnected, this, [this, newClient]() {
+    connect(newClient, &QTcpSocket::disconnected, this, [this, newClient, descr]() {
         if (socketToId.contains(newClient)) {
             int userId = socketToId[newClient];
-            ui.oField->append(QString("Клиент id%1 отключился.").arg(userId));
+            ui.oField->append(QString("Клиент #%1 отключился").arg(descr));
             idToName.remove(userId);
             idToSocket.remove(userId);
             socketToId.remove(newClient);
@@ -55,6 +67,8 @@ void wServerClass::processClientMsg(QTcpSocket* client) {
     int code = strmsg.section(' ', 0, 0).toInt(); 
     QString textMsg = strmsg.section(' ', 1);
     clientQuery command = static_cast<clientQuery>(code);
+
+    if (command != clientQuery::Logout) qLogger(client, command);
 
     switch (command)
     {
@@ -91,9 +105,9 @@ void wServerClass::handleRegistration(QTcpSocket* client, QString msg) {
     checkQuery.bindValue(":name", username);
     checkQuery.exec();
 
-    int respCode = -1;
     int userId;
     bool regSuccessful = false;
+    serverResponse resp;
 
     if (checkQuery.next() && checkQuery.value(0).toInt() == 0) {
         QString salt = generateSalt();
@@ -113,12 +127,14 @@ void wServerClass::handleRegistration(QTcpSocket* client, QString msg) {
         idToSocket[userId] = client;
         socketToId[client] = userId;
 
-        respCode = static_cast<int>(serverResponse::Registered);
+        resp = serverResponse::Registered;
         regSuccessful = true;
     }
     else {
-        respCode = static_cast<int>(serverResponse::UsernameExists);
+        resp = serverResponse::UsernameExists;
     }
+
+    int respCode = static_cast<int>(resp);
 
     QByteArray response;
     if (regSuccessful) {
@@ -128,6 +144,8 @@ void wServerClass::handleRegistration(QTcpSocket* client, QString msg) {
     else {
         response = QByteArray::number(respCode);
     }
+
+    rLogger(client, resp);
     client->write(response);
 }
 
@@ -136,11 +154,10 @@ void wServerClass::handleLogin(QTcpSocket* client, QString msg) {
     QString username = msgParts[0];
     QString password = msgParts[1];
 
-    int respCode = -1;
     int userId;
     bool loginSuccessful = false;
+    serverResponse resp;
     
-
     QSqlQuery checkDataQuery;
     checkDataQuery.prepare("SELECT password, salt, id FROM users WHERE username = :name");
     checkDataQuery.bindValue(":name", username);
@@ -158,12 +175,14 @@ void wServerClass::handleLogin(QTcpSocket* client, QString msg) {
             idToName[userId] = username;
             idToSocket[userId] = client;
             socketToId[client] = userId;
-            respCode = static_cast<int>(serverResponse::LoginOK);
+            resp = serverResponse::LoginOK;
             loginSuccessful = true;
         }
-        else respCode = static_cast<int>(serverResponse::WrongPassword);
+        else resp = serverResponse::WrongPassword;
     }
-    else respCode = static_cast<int>(serverResponse::UserNotFound);
+    else resp = serverResponse::UserNotFound;
+
+    int respCode = static_cast<int>(resp);
 
     QByteArray response;
     if (loginSuccessful) {
@@ -173,6 +192,8 @@ void wServerClass::handleLogin(QTcpSocket* client, QString msg) {
     else {
         response = QByteArray::number(respCode);
     }
+
+    rLogger(client, resp);
     client->write(response);
 }
 
@@ -180,11 +201,10 @@ void wServerClass::handleNameChange(QTcpSocket* client, QString msg) {
     int userId = socketToId[client];
     QString newUsername = std::move(msg);
     bool changeSuccessful = false;
-    int respCode = -1;
+    serverResponse resp;
 
     if (newUsername.length() > 14) {
-        respCode = static_cast<int>(serverResponse::NameTooLong);
-        client->write(QByteArray::number(respCode));
+        client->write(QByteArray::number(static_cast<int>(serverResponse::NameTooLong)));
         return;
     }
 
@@ -201,10 +221,12 @@ void wServerClass::handleNameChange(QTcpSocket* client, QString msg) {
         updateQuery.exec(); 
 
         idToName[userId] = newUsername;
-        respCode = static_cast<int>(serverResponse::Successful);
+        resp = serverResponse::Successful;
         changeSuccessful = true;
     }
-    else respCode = static_cast<int>(serverResponse::UsernameExists);
+    else resp = serverResponse::UsernameExists;
+
+    int respCode = static_cast<int>(resp);
 
     QByteArray response;
     if (changeSuccessful) {
@@ -214,6 +236,8 @@ void wServerClass::handleNameChange(QTcpSocket* client, QString msg) {
     else {
         response = QByteArray::number(respCode);
     } 
+
+    rLogger(client, resp);
     client->write(response);
 }
 
@@ -225,6 +249,8 @@ void wServerClass::handleChatMsg(QTcpSocket* client, QString msg) {
 
     for (auto cl : socketToId.keys()) {
         if (cl != client) cl->write(formatedMsg.toUtf8());
+
+        rLogger(cl, serverResponse::Message);
     }
 }
 
@@ -235,6 +261,8 @@ void wServerClass::handlePrivateMsg(QTcpSocket* client, QString msg) {
     if (!idToSocket.contains(recipientId)) {
         respCode = static_cast<int>(serverResponse::UserNotFound);
         client->write(QByteArray::number(respCode));
+
+        rLogger(client, serverResponse::UserNotFound);
         return;
     }
 
@@ -243,6 +271,8 @@ void wServerClass::handlePrivateMsg(QTcpSocket* client, QString msg) {
     QString msgForUser = msg.section(' ', 1);
     QString formatedMsg = QString("%1 %2 %3 %4").arg(respCode).arg(senderId).arg(idToName[senderId]).arg(msgForUser);
     idToSocket[recipientId]->write(formatedMsg.toUtf8());
+
+    rLogger(idToSocket[recipientId], serverResponse::PrivateMessage);
 }
 
 void wServerClass::handleLogout(QTcpSocket* client, QString msg) {
@@ -255,6 +285,16 @@ QString wServerClass::generateSalt() {
     return salt.toHex();
 }
 
+void wServerClass::qLogger(QTcpSocket* client, clientQuery query){
+    QString text = QString("<font color='#821d8a'>[from: #%1]: %2</font>").arg(client->socketDescriptor()).arg(toStrQ(query));
+    ui.oField->append(text);
+}
+
+void wServerClass::rLogger(QTcpSocket* client, serverResponse response) {
+    QString text = QString("<font color='#ffa000'>[to: #%1]: %2</font>").arg(client->socketDescriptor()).arg(toStr(response));
+    ui.oField->append(text);
+}
+
 wServerClass::~wServerClass() {
     server.close();
     for (auto client : socketToId.keys()) {
@@ -264,4 +304,3 @@ wServerClass::~wServerClass() {
     idToSocket.clear();
     idToName.clear();
 }
-

@@ -5,7 +5,7 @@
 #include <QString>
 #include <QtSql>
 #include "ui_wServer.h"
-#include "protocol.h"
+#include "\repos\wServer\Common\protocol.h"
 
 class wServerClass : public QWidget
 {
@@ -14,23 +14,26 @@ class wServerClass : public QWidget
 public:
     wServerClass(QWidget *parent = nullptr);
     ~wServerClass();
-
+    
 private slots:
     void onNewConnection();
-
+    
 private:
     QSqlDatabase chatDB;
     QTcpServer server;
     Ui::wServerClass ui;
+    QTimer* updateOnlineNum;
 
     QHash<QTcpSocket*, int> socketToId;
     QHash<int, QTcpSocket*> idToSocket;
     QHash<int, QString> idToName;
 
     void setupDB();
+    void setupUI();
     void setupServer();
 
     void processClientMsg(QTcpSocket* client);
+    void setupTimer();
 
     void handleRegistration(QTcpSocket* client, QString msg);
     void handleNameChange(QTcpSocket* client, QString msg);
@@ -39,6 +42,8 @@ private:
     void handlePrivateMsg(QTcpSocket* client, QString msg); 
     void handleLogout(QTcpSocket* client, QString msg);
     QString generateSalt();
-};
 
+    void qLogger(QTcpSocket* client, const clientQuery query);
+    void rLogger(QTcpSocket* client, const serverResponse response);
+};
 
