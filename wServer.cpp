@@ -186,13 +186,18 @@ void wServerClass::handleNameChange(QTcpSocket* client, QString msg) {
     int userId = socketToId[client];
     QString newUsername = std::move(msg);
     bool changeSuccessful = false;
+    int respCode = -1;
+
+    if (newUsername.length() > 14) {
+        respCode = static_cast<int>(serverResponse::NameTooLong);
+        client->write(QByteArray::number(respCode));
+        return;
+    }
 
     QSqlQuery checkQuery;
     checkQuery.prepare("SELECT COUNT(username) FROM users WHERE username = :name");
     checkQuery.bindValue(":name", newUsername);
     checkQuery.exec();
-
-    int respCode = -1;
 
     if (checkQuery.next() && checkQuery.value(0).toInt() == 0) {
         QSqlQuery updateQuery;
@@ -256,5 +261,12 @@ QString wServerClass::generateSalt() {
     return salt.toHex();
 }
 
-wServerClass::~wServerClass()
-{}
+wServerClass::~wServerClass() {
+    server.close();
+    for (auto client : socketToId.keys()) {
+        client->disconnect();
+    }
+    socketToId.clear();
+    idToSocket.clear();
+    idToName.clear();
+}
