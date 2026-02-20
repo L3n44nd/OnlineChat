@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
@@ -20,7 +20,8 @@ enum class serverResponse {
 	UserNotFound,
 	UsernameExists,
 	Message, 
-	PrivateMessage
+	PrivateMessage, 
+	NameTooLong
 };
 
 inline const char* toStr(serverResponse resp) {
@@ -31,9 +32,21 @@ inline const char* toStr(serverResponse resp) {
 	case serverResponse::WrongPassword: return "Неверный пароль";
 	case serverResponse::UserNotFound: return "Пользователь не найден";
 	case serverResponse::UsernameExists: return "Имя занято";
+	case serverResponse::NameTooLong: return "Слишком длинное имя";
 	default: return "Неизвестный код ответа";
 	}
 }
 
+inline const char* toStrQ(clientQuery query) {
+	switch (query)
+	{
+	case clientQuery::Register: return "Регистрация";
+	case clientQuery::Login: return "Авторизация";
+	case clientQuery::Logout: return "Выход";
+	case clientQuery::Message: return "Сообщение";
+	case clientQuery::PrivateMessage: return "Личное сообщение";
+	case clientQuery::NameChange: return "Смена имени";
+	default: return "Неизвестный код запроса";
+	}
+}
 #endif // !PROTOCOL_H
-
