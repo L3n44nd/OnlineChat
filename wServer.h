@@ -28,7 +28,6 @@ private:
     QHash<int, QString> idToName;
 
     void setupDB();
-    void setupUI();
     void setupServer();
 
     void processClientMsg(QTcpSocket* client);
@@ -41,4 +40,5 @@ private:
     void handleLogout(QTcpSocket* client, QString msg);
     QString generateSalt();
 };
+
 
