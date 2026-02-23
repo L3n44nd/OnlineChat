@@ -39,14 +39,16 @@ private:
     void processClientMsg(QTcpSocket* client, const QByteArray& utf8msg);
 
     void handleRegistration(QTcpSocket* client, const QString& msg);
-    void handleNameChange(QTcpSocket* client, const QString& msg);
+    void handleNameChange(QTcpSocket* client, QString msg);
     void handleLogin(QTcpSocket* client, const QString& msg);
     void handleChatMsg(QTcpSocket* client, const QString& msg);
     void handlePrivateMsg(QTcpSocket* client, const QString& msg);
     void handleLogout(QTcpSocket* client, const QString& msg);
     void sendOnlineList();
-    void sendPacket(QTcpSocket* client, const QString& data);
+    void sendPacket(QTcpSocket* client, const serverResponse response, const QString& data = QString());
+    void sendHistory(QTcpSocket* client, const QString& msg);
 
+    void saveToDB(const int senderId, const QString& senderName, const int recipientId, const QString& msg);
     QString generateSalt();
 
     void qLogger(QTcpSocket* client, const clientQuery query);

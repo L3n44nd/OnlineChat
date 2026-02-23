@@ -17,6 +17,7 @@ void wServerClass::setupDB() {
         ui.oField->append("Не удалось открыть БД");
         return;
     }
+
     QSqlQuery query;
     query.exec(
         "CREATE TABLE IF NOT EXISTS users ("
@@ -24,6 +25,16 @@ void wServerClass::setupDB() {
         "username TEXT UNIQUE, "
         "password TEXT,"
         "salt TEXT)"
+    );
+ 
+    query.exec(
+        "CREATE TABLE IF NOT EXISTS history ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "senderId INTEGER NOT NULL, "
+        "senderName TEXT, "
+        "recipientId INTEGER, "
+        "timestamp INTEGER NOT NULL, "
+        "message TEXT)"
     );
 }
 
@@ -103,6 +114,9 @@ void wServerClass::processClientMsg(QTcpSocket* client, const QByteArray& utf8ms
     case clientQuery::NameChange:
         handleNameChange(client, textMsg);
         break;
+    case clientQuery::GetHistory:
+        sendHistory(client, textMsg);
+        break;
     default:
         break;
     }
@@ -120,7 +134,6 @@ void wServerClass::handleRegistration(QTcpSocket* client, const QString& msg) {
 
     int userId;
     bool regSuccessful = false;
-    serverResponse resp;
 
     if (checkQuery.next() && checkQuery.value(0).toInt() == 0) {
         QString salt = generateSalt();
@@ -139,27 +152,19 @@ void wServerClass::handleRegistration(QTcpSocket* client, const QString& msg) {
         idToName[userId] = username;
         idToSocket[userId] = client;
         socketToId[client] = userId;
-
-        resp = serverResponse::Registered;
         regSuccessful = true;
     }
-    else {
-        resp = serverResponse::UsernameExists;
-    }
-
-    int respCode = static_cast<int>(resp);
-    QString formatedMsg;
 
     if (regSuccessful) {
-        formatedMsg = QString("%1 %2 %3").arg(respCode).arg(userId).arg(username);
+        QString formatedMsg = QString("%1 %2").arg(userId).arg(username);
+        sendPacket(client, serverResponse::Registered, formatedMsg);
+        sendOnlineList();
+        rLogger(client, serverResponse::Registered);
     }
     else {
-        formatedMsg = QString::number(respCode);
+        sendPacket(client, serverResponse::UsernameExists); 
+        rLogger(client, serverResponse::UsernameExists);
     }
-
-    sendPacket(client, formatedMsg);
-    if (regSuccessful) sendOnlineList();
-    rLogger(client, resp);
 }
 
 void wServerClass::handleLogin(QTcpSocket* client, const QString& msg) {
@@ -169,7 +174,6 @@ void wServerClass::handleLogin(QTcpSocket* client, const QString& msg) {
 
     int userId;
     bool loginSuccessful = false;
-    serverResponse resp;
     QSqlQuery checkDataQuery;
     checkDataQuery.prepare("SELECT password, salt, id FROM users WHERE username = :name");
     checkDataQuery.bindValue(":name", username);
@@ -186,38 +190,37 @@ void wServerClass::handleLogin(QTcpSocket* client, const QString& msg) {
             idToName[userId] = username;
             idToSocket[userId] = client;
             socketToId[client] = userId;
-            resp = serverResponse::LoginOK;
             loginSuccessful = true;
         }
-        else resp = serverResponse::WrongPassword;
     }
-    else resp = serverResponse::UserNotFound;
+    else {
+        sendPacket(client, serverResponse::UserNotFound);
+        rLogger(client, serverResponse::UserNotFound);
+        return;
+    }
 
-    int respCode = static_cast<int>(resp);
     QString formatedMsg;
 
     if (loginSuccessful) {
-        formatedMsg = QString("%1 %2 %3").arg(respCode).arg(userId).arg(username);  
+        formatedMsg = QString("%1 %2").arg(userId).arg(username);  
+        sendPacket(client, serverResponse::LoginOK, formatedMsg);
+        sendOnlineList();
+        rLogger(client, serverResponse::LoginOK);
     }
     else {
-        formatedMsg = QString::number(respCode);
+        sendPacket(client, serverResponse::WrongPassword);
+        rLogger(client, serverResponse::WrongPassword);
     }
-    
-    sendPacket(client, formatedMsg);
-    if (loginSuccessful) sendOnlineList();
-    rLogger(client, resp);
 }
 
-void wServerClass::handleNameChange(QTcpSocket* client, const QString& newUsername) {
+void wServerClass::handleNameChange(QTcpSocket* client, QString msg) {
     int userId = socketToId[client];
     bool changeSuccessful = false;
-    serverResponse resp;
     QString formatedMsg;
+    QString newUsername = std::move(msg);
 
     if (newUsername.length() > 14) {
-        int respCode = static_cast<int>(serverResponse::NameTooLong);
-        formatedMsg = QString::number(respCode);
-        sendPacket(client, formatedMsg);
+        sendPacket(client, serverResponse::NameTooLong);
         return;
     }
 
@@ -234,54 +237,46 @@ void wServerClass::handleNameChange(QTcpSocket* client, const QString& newUserna
         updateQuery.exec(); 
 
         idToName[userId] = newUsername;
-        resp = serverResponse::Successful;
         changeSuccessful = true;
     }
-    else resp = serverResponse::UsernameExists;
-
-    int respCode = static_cast<int>(resp);
 
     if (changeSuccessful) {
-        formatedMsg = QString("%1 %2").arg(respCode).arg(newUsername);
+        sendPacket(client, serverResponse::Successful, newUsername);
         sendOnlineList();
+        rLogger(client, serverResponse::Successful);
     }
     else {
-        formatedMsg = QString::number(respCode);
+        sendPacket(client, serverResponse::UsernameExists);
+        rLogger(client, serverResponse::UsernameExists);
     } 
-
-    sendPacket(client, formatedMsg);
-    rLogger(client, resp);
 }
 
 void wServerClass::handleChatMsg(QTcpSocket* client, const QString& msg) {
     int senderId = socketToId[client];
-    int respCode = static_cast<int>(serverResponse::Message);
-    QString formatedMsg = QString("%1 %2 %3").arg(respCode).arg(idToName[senderId]).arg(msg);
+    QString formatedMsg = QString("%1 %2").arg(idToName[senderId]).arg(msg);
 
     for (auto cl : socketToId.keys()) {
-        if (cl != client) sendPacket(cl, formatedMsg);
+        if (cl != client) sendPacket(cl, serverResponse::Message, formatedMsg);
         rLogger(cl, serverResponse::Message);
     }
+    saveToDB(senderId, idToName[senderId], 0, msg);
 }
 
 void wServerClass::handlePrivateMsg(QTcpSocket* client, const QString& msg) {
     int recipientId = msg.section(' ', 0, 0).toInt();
-    int respCode = -1;
 
     if (!idToSocket.contains(recipientId)) {
-        int respCode = static_cast<int>(serverResponse::UserNotFound);
-        QByteArray bArrResp = QByteArray::number(respCode);
-        client->write(QByteArray::number(bArrResp.size()).rightJustified(4, '0') + bArrResp);
+        sendPacket(client, serverResponse::UserNotFound);
         rLogger(client, serverResponse::UserNotFound);
         return;
     }
 
-    respCode = static_cast<int>(serverResponse::PrivateMessage);
     int senderId = socketToId[client];
     QString msgForUser = msg.section(' ', 1);
-    QString formatedMsg = QString("%1 %2 %3 %4").arg(respCode).arg(senderId).arg(idToName[senderId]).arg(msgForUser);
+    QString formatedMsg = QString("%1 %2 %3").arg(senderId).arg(idToName[senderId]).arg(msgForUser);
 
-    sendPacket(idToSocket[recipientId], formatedMsg);
+    sendPacket(idToSocket[recipientId], serverResponse::PrivateMessage, formatedMsg);
+    saveToDB(senderId, idToName[senderId], recipientId, msgForUser);
     rLogger(idToSocket[recipientId], serverResponse::PrivateMessage);
 }
 
@@ -290,23 +285,78 @@ void wServerClass::handleLogout(QTcpSocket* client, const QString& msg) {
 }
 
 void wServerClass::sendOnlineList() {
-    int respCode = static_cast<int>(serverResponse::UpdateOnline);
-    QString response = QString::number(respCode);
-
+    QStringList list;
     for (const auto& userId : idToName.keys()) {
-        response += QString(" %1 %2").arg(userId).arg(idToName[userId]);
+        list << QString("%1 %2").arg(userId).arg(idToName[userId]);
     }
+
+    QString response = list.join('\n');
+
     for (QTcpSocket* client : socketToId.keys()) {
-        sendPacket(client, response);
+        sendPacket(client, serverResponse::UpdateOnline, response);
         rLogger(client, serverResponse::UpdateOnline);
     }
 }
 
-void wServerClass::sendPacket(QTcpSocket* client, const QString& data) {
-    QByteArray bArrData = data.toUtf8();
+void wServerClass::sendPacket(QTcpSocket* client, const serverResponse response, const QString& data) {
+    int respCode = static_cast<int>(response);
+    QString formatedData = data.isEmpty() ? QString::number(respCode) : QString("%1 %2").arg(respCode).arg(data);
+    QByteArray bArrData = formatedData.toUtf8();
     int dataSize = bArrData.size();
     QByteArray packet = QByteArray::number(dataSize).rightJustified(4, '0') + bArrData;
     client->write(packet);
+}
+
+void wServerClass::sendHistory(QTcpSocket* client, const QString& msg) {
+    int otherId = msg.toInt();
+    QSqlQuery query;
+    if (otherId != 0){
+        query.prepare(
+            "SELECT senderId, senderName, message FROM history "
+            "WHERE (senderId = :sender AND recipientId = :recipient) "
+            "OR (senderId = :recipient AND recipientId = :sender) "
+            "ORDER BY timestamp"
+        );
+        query.bindValue(":sender", socketToId[client]);
+        query.bindValue(":recipient", otherId);
+        query.exec();
+
+    }
+    else {
+        query.exec(
+            "SELECT senderId, senderName, message FROM history "
+            "WHERE recipientId = 0 "
+            "ORDER BY timestamp"
+        );
+    }
+
+    QStringList list;
+    QString senderId;
+    QString senderName;
+    QString message;
+    while (query.next()) {
+        senderId = query.value(0).toString();
+        senderName = query.value(1).toString();
+        message = query.value(2).toString();
+        list << QString("%1 %2 %3").arg(senderId).arg(senderName).arg(message);
+    }
+
+    QString response = QString("%1 %2").arg(otherId).arg(list.join('\n'));
+    sendPacket(client, serverResponse::SendHistory, response);
+    rLogger(client, serverResponse::SendHistory);
+}
+
+void wServerClass::saveToDB(const int senderId, const QString& senderName, const int recipientId, const QString& msg) {
+    qint64 currTime = QDateTime::currentSecsSinceEpoch();
+
+    QSqlQuery query;
+    query.prepare("INSERT INTO history (senderId, senderName, recipientId, timestamp, message) VALUES (:sId, :sName, :rId, :time, :msg)");
+    query.bindValue(":sId", senderId);
+    query.bindValue(":sName", senderName);
+    query.bindValue(":rId", recipientId);
+    query.bindValue(":time", currTime);
+    query.bindValue(":msg", msg);
+    query.exec();
 }
 
 QString wServerClass::generateSalt() {
