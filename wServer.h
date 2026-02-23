@@ -19,6 +19,10 @@ private slots:
     void onNewConnection();
     
 private:
+
+    int sizeOfData = 0;
+    bool waitingForSize = true;
+
     QSqlDatabase chatDB;
     QTcpServer server;
     Ui::wServerClass ui;
@@ -29,22 +33,22 @@ private:
     QHash<int, QString> idToName;
 
     void setupDB();
-    void setupUI();
     void setupServer();
-
-    void processClientMsg(QTcpSocket* client);
     void setupTimer();
 
-    void handleRegistration(QTcpSocket* client, QString msg);
-    void handleNameChange(QTcpSocket* client, QString msg);
-    void handleLogin(QTcpSocket* client, QString msg);
-    void handleChatMsg(QTcpSocket* client, QString msg);
-    void handlePrivateMsg(QTcpSocket* client, QString msg); 
-    void handleLogout(QTcpSocket* client, QString msg);
+    void processClientMsg(QTcpSocket* client, const QByteArray& utf8msg);
+
+    void handleRegistration(QTcpSocket* client, const QString& msg);
+    void handleNameChange(QTcpSocket* client, const QString& msg);
+    void handleLogin(QTcpSocket* client, const QString& msg);
+    void handleChatMsg(QTcpSocket* client, const QString& msg);
+    void handlePrivateMsg(QTcpSocket* client, const QString& msg);
+    void handleLogout(QTcpSocket* client, const QString& msg);
     void sendOnlineList();
+    void sendPacket(QTcpSocket* client, const QString& data);
 
     QString generateSalt();
-    
+
     void qLogger(QTcpSocket* client, const clientQuery query);
     void rLogger(QTcpSocket* client, const serverResponse response);
 };
