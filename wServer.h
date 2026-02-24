@@ -27,6 +27,7 @@ private:
     QTcpServer server;
     Ui::wServerClass ui;
     QTimer* updateOnlineNum;
+    QTimer* cleanUpDB;
 
     QHash<QTcpSocket*, int> socketToId;
     QHash<int, QTcpSocket*> idToSocket;
@@ -34,7 +35,7 @@ private:
 
     void setupDB();
     void setupServer();
-    void setupTimer();
+    void setupTimers();
 
     void processClientMsg(QTcpSocket* client, const QByteArray& utf8msg);
 

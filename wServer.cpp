@@ -43,13 +43,23 @@ void wServerClass::setupServer() {
     connect(&server, &QTcpServer::newConnection, this, &wServerClass::onNewConnection);
 }
 
-void wServerClass::setupTimer() {
+void wServerClass::setupTimers() {
     updateOnlineNum = new QTimer(this);
     updateOnlineNum->setInterval(5000);
     updateOnlineNum->start();
 
     connect(updateOnlineNum, &QTimer::timeout, this, [this]() {
         ui.onlineField->setText(QString::number(socketToId.size()));
+        });
+
+    const int day = 24 * 60 * 60 * 1000;
+    cleanUpDB = new QTimer(this);
+    cleanUpDB->setInterval(day);
+    cleanUpDB->start();
+
+    connect(cleanUpDB, &QTimer::timeout, this, [this]() {
+        QSqlQuery query;
+        query.exec("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY timestamp DESC LIMIT 1000)");
         });
 }
 
