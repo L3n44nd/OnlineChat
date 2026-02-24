@@ -6,7 +6,7 @@ wServerClass::wServerClass(QWidget* parent)
 
         setupDB();
         setupServer();
-        setupTimer();
+        setupTimers();
         ui.setupUi(this);
     }
 
@@ -133,7 +133,7 @@ void wServerClass::processClientMsg(QTcpSocket* client, const QByteArray& utf8ms
 }
 
 void wServerClass::handleRegistration(QTcpSocket* client, const QString& msg) {
-    QStringList msgParts = msg.split(' '); 
+    QStringList msgParts = msg.split('\n'); 
     QString username = msgParts[0];
     QString password = msgParts[1];
     
@@ -166,7 +166,7 @@ void wServerClass::handleRegistration(QTcpSocket* client, const QString& msg) {
     }
 
     if (regSuccessful) {
-        QString formatedMsg = QString("%1 %2").arg(userId).arg(username);
+        QString formatedMsg = QString("%1\n%2").arg(userId).arg(username);
         sendPacket(client, serverResponse::Registered, formatedMsg);
         sendOnlineList();
         rLogger(client, serverResponse::Registered);
@@ -178,7 +178,7 @@ void wServerClass::handleRegistration(QTcpSocket* client, const QString& msg) {
 }
 
 void wServerClass::handleLogin(QTcpSocket* client, const QString& msg) {
-    QStringList msgParts = msg.split(' ');
+    QStringList msgParts = msg.split('\n');
     QString username = msgParts[0];
     QString password = msgParts[1];
 
@@ -212,7 +212,7 @@ void wServerClass::handleLogin(QTcpSocket* client, const QString& msg) {
     QString formatedMsg;
 
     if (loginSuccessful) {
-        formatedMsg = QString("%1 %2").arg(userId).arg(username);  
+        formatedMsg = QString("%1\n%2").arg(userId).arg(username);  
         sendPacket(client, serverResponse::LoginOK, formatedMsg);
         sendOnlineList();
         rLogger(client, serverResponse::LoginOK);
@@ -263,7 +263,7 @@ void wServerClass::handleNameChange(QTcpSocket* client, QString msg) {
 
 void wServerClass::handleChatMsg(QTcpSocket* client, const QString& msg) {
     int senderId = socketToId[client];
-    QString formatedMsg = QString("%1 %2").arg(idToName[senderId]).arg(msg);
+    QString formatedMsg = QString("%1\n%2").arg(idToName[senderId]).arg(msg);
 
     for (auto cl : socketToId.keys()) {
         if (cl != client) sendPacket(cl, serverResponse::Message, formatedMsg);
@@ -273,21 +273,18 @@ void wServerClass::handleChatMsg(QTcpSocket* client, const QString& msg) {
 }
 
 void wServerClass::handlePrivateMsg(QTcpSocket* client, const QString& msg) {
-    int recipientId = msg.section(' ', 0, 0).toInt();
-
-    if (!idToSocket.contains(recipientId)) {
-        sendPacket(client, serverResponse::UserNotFound);
-        rLogger(client, serverResponse::UserNotFound);
-        return;
-    }
-
+    int recipientId = msg.section('\n', 0, 0).toInt();
     int senderId = socketToId[client];
-    QString msgForUser = msg.section(' ', 1);
-    QString formatedMsg = QString("%1 %2 %3").arg(senderId).arg(idToName[senderId]).arg(msgForUser);
+    QString msgForUser = msg.section('\n', 1);
+    QString formatedMsg = QString("%1\n%2\n%3").arg(senderId).arg(idToName[senderId]).arg(msgForUser);
 
-    sendPacket(idToSocket[recipientId], serverResponse::PrivateMessage, formatedMsg);
+    if (idToSocket.contains(recipientId)) {
+        sendPacket(idToSocket[recipientId], serverResponse::PrivateMessage, formatedMsg);
+        rLogger(idToSocket[recipientId], serverResponse::PrivateMessage);
+    }
+    else rLogger(client, serverResponse::UserNotFound);
+
     saveToDB(senderId, idToName[senderId], recipientId, msgForUser);
-    rLogger(idToSocket[recipientId], serverResponse::PrivateMessage);
 }
 
 void wServerClass::handleLogout(QTcpSocket* client, const QString& msg) {
@@ -297,10 +294,10 @@ void wServerClass::handleLogout(QTcpSocket* client, const QString& msg) {
 void wServerClass::sendOnlineList() {
     QStringList list;
     for (const auto& userId : idToName.keys()) {
-        list << QString("%1 %2").arg(userId).arg(idToName[userId]);
+        list << QString("%1\n%2").arg(userId).arg(idToName[userId]);
     }
 
-    QString response = list.join('\n');
+    QString response = list.join("\n\n");
 
     for (QTcpSocket* client : socketToId.keys()) {
         sendPacket(client, serverResponse::UpdateOnline, response);
@@ -348,10 +345,10 @@ void wServerClass::sendHistory(QTcpSocket* client, const QString& msg) {
         senderId = query.value(0).toString();
         senderName = query.value(1).toString();
         message = query.value(2).toString();
-        list << QString("%1 %2 %3").arg(senderId).arg(senderName).arg(message);
+        list << QString("%1\n%2\n%3").arg(senderId).arg(senderName).arg(message);
     }
 
-    QString response = QString("%1 %2").arg(otherId).arg(list.join('\n'));
+    QString response = QString("%1\n%2").arg(otherId).arg(list.join("\n\n"));
     sendPacket(client, serverResponse::SendHistory, response);
     rLogger(client, serverResponse::SendHistory);
 }
