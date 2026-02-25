@@ -157,7 +157,8 @@ void wServerClass::handleRegistration(QTcpSocket* client, const QString& msg) {
         regQuery.bindValue(":psw", strHashed);
         regQuery.bindValue(":slt", salt);
         regQuery.exec();
-
+        
+        userId = regQuery.lastInsertId().toInt();
         idToName[userId] = username;
         idToSocket[userId] = client;
         socketToId[client] = userId;
@@ -395,3 +396,4 @@ wServerClass::~wServerClass() {
     idToSocket.clear();
     idToName.clear();
 }
+
