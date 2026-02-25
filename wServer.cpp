@@ -136,7 +136,7 @@ void wServerClass::handleRegistration(QTcpSocket* client, const QString& msg) {
     QStringList msgParts = msg.split('\n'); 
     QString username = msgParts[0];
     QString password = msgParts[1];
-    
+
     QSqlQuery checkQuery;
     checkQuery.prepare("SELECT COUNT(username) FROM users WHERE username = :name");
     checkQuery.bindValue(":name", username);
@@ -158,7 +158,6 @@ void wServerClass::handleRegistration(QTcpSocket* client, const QString& msg) {
         regQuery.bindValue(":slt", salt);
         regQuery.exec();
 
-        userId = regQuery.lastInsertId().toInt();
         idToName[userId] = username;
         idToSocket[userId] = client;
         socketToId[client] = userId;
@@ -193,6 +192,11 @@ void wServerClass::handleLogin(QTcpSocket* client, const QString& msg) {
         QString hashFromDB = checkDataQuery.value(0).toString();
         QString saltFromDB = checkDataQuery.value(1).toString();
         userId = checkDataQuery.value(2).toInt();
+        if (idToSocket.contains(userId)) {
+            sendPacket(client, serverResponse::AlreadyAuthorized);
+            return;
+        }
+
         QByteArray bArrHash = QCryptographicHash::hash((password + saltFromDB).toUtf8(), QCryptographicHash::Sha256);
         QString hashedStr = bArrHash.toHex();
 
