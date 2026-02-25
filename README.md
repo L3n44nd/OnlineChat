@@ -19,12 +19,12 @@
   ```
 
 2. База данных SQLite
-  - в таблице users хранятся данные пользхователей
-  - в таблице history хранится архив сообщений
-  - запросы к БД с защитой от SQL-инъекций (prepare)
+    - в таблице users хранятся данные пользхователей
+    - в таблице history хранится архив сообщений
+    - запросы к БД с защитой от SQL-инъекций (prepare)
 
 3. Безопасность
-  - при регистрации генерируется соль, добавляется к паролю пользователя, полученная строка хэшируется SHA-256:
+    - при регистрации генерируется соль, добавляется к паролю пользователя, полученная строка хэшируется SHA-256:
   ```cpp
   QString wServerClass::generateSalt() {
       QByteArray salt(16, Qt::Uninitialized);
@@ -38,11 +38,11 @@
   QByteArray bArrHashedStr = QCryptographicHash::hash(strToHash.toUtf8(), QCryptographicHash::Sha256);
   ```
 4. Протокол
-- пакет имеет формат `[4 байта - размер данных][данные - код ответа и информация]`
-- коды запросов (clientQuery) и коды ответов (serverResponse) содержатся в общем файле protocol.h
+    - пакет имеет формат `[4 байта - размер данных][данные - код ответа и информация]`
+    - коды запросов (clientQuery) и коды ответов (serverResponse) содержатся в общем файле protocol.h
 
 5. Обмен пакетами
-  - формирование пакета:
+    - формирование пакета:
   ```cpp
  void wServerClass::sendPacket(QTcpSocket* client, const serverResponse response, const QString& data) {
     int respCode = static_cast<int>(response);
@@ -53,7 +53,7 @@
     client->write(packet);
 }
 ```
-- получение пакета от клиента:
+  - получение пакета от клиента: 
 ```cpp
       connect(newClient, &QTcpSocket::readyRead, this, [this, newClient]() {
         while (true) {
