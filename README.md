@@ -89,4 +89,5 @@
 ```
   - история рассылается при авторизации и открытии вкладки личных сообщений (по запросу клиента)
   - список онлайна рассылается при входе и выходе
-  
+
+  Скачать сборку под Windows: https://github.com/L3n44nd/OnlineChatServer/releases/download/v1.0.0/OnlineChatServer.zip
