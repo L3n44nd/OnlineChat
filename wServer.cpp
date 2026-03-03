@@ -11,8 +11,21 @@ wServerClass::wServerClass(QWidget* parent)
     }
 
 void wServerClass::setupDB() {
-    chatDB = QSqlDatabase::addDatabase("QSQLITE");
-    chatDB.setDatabaseName("chat.db");
+
+    QSettings settings("config.ini", QSettings::IniFormat);
+    QString host = settings.value("DB/host").toString();
+    int port = settings.value("DB/port").toInt();
+    QString dbName = settings.value("DB/name").toString();
+    QString user = settings.value("DB/user").toString();
+    QString password = settings.value("DB/password").toString();
+
+    chatDB = QSqlDatabase::addDatabase("QPSQL");
+    chatDB.setHostName(host);
+    chatDB.setPort(port);
+    chatDB.setDatabaseName(dbName);
+    chatDB.setUserName(user);
+    chatDB.setPassword(password);
+
     if (!chatDB.open()) {
         ui.oField->append("Не удалось открыть БД");
         return;
@@ -21,15 +34,14 @@ void wServerClass::setupDB() {
     QSqlQuery query;
     query.exec(
         "CREATE TABLE IF NOT EXISTS users ("
-        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "id SERIAL PRIMARY KEY, "
         "username TEXT UNIQUE, "
         "password TEXT,"
         "salt TEXT)"
     );
- 
     query.exec(
         "CREATE TABLE IF NOT EXISTS history ("
-        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "id SERIAL PRIMARY KEY, "
         "senderId INTEGER NOT NULL, "
         "senderName TEXT, "
         "recipientId INTEGER, "
@@ -39,7 +51,7 @@ void wServerClass::setupDB() {
 }
 
 void wServerClass::setupServer() {    
-    server.listen(QHostAddress::LocalHost, 1402);
+    server.listen(QHostAddress::LocalHost, 1403);
     connect(&server, &QTcpServer::newConnection, this, &wServerClass::onNewConnection);
 }
 
@@ -59,7 +71,7 @@ void wServerClass::setupTimers() {
 
     connect(cleanUpDB, &QTimer::timeout, this, [this]() {
         QSqlQuery query;
-        query.exec("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY timestamp DESC LIMIT 1000)");
+        query.exec("DELETE FROM history WHERE id < (SELECT id FROM history ORDER BY timestamp DESC OFFSET 999 LIMIT 1)");
         });
 }
 
@@ -157,7 +169,7 @@ void wServerClass::handleRegistration(QTcpSocket* client, const QString& msg) {
         regQuery.bindValue(":psw", strHashed);
         regQuery.bindValue(":slt", salt);
         regQuery.exec();
-        
+
         userId = regQuery.lastInsertId().toInt();
         idToName[userId] = username;
         idToSocket[userId] = client;
@@ -396,4 +408,3 @@ wServerClass::~wServerClass() {
     idToSocket.clear();
     idToName.clear();
 }
-
