@@ -2,7 +2,7 @@
 Многопользовательский онлайн-чат. C++17, Qt 6 (widgets, network, sql).
 
 Серверная часть:
-  - SQLite
+  - база данных PostgeSQL
   - безопасное хранение паролей
   - логирование действий пользователей
   - одновременная обработка подключений
@@ -90,4 +90,14 @@
   - история рассылается при авторизации и открытии вкладки личных сообщений (по запросу клиента)
   - список онлайна рассылается при входе и выходе
 
-  Скачать сборку под Windows: https://github.com/L3n44nd/OnlineChatServer/releases/download/v1.0.0/OnlineChatServer.zip
+  Скачать сборку под Windows: https://github.com/L3n44nd/OnlineChatServer/releases/download/v1.0.1/OnlineChatServer.zip
+  
+  В файле конфигурации `config.ini` прописать:  
+```
+[DB]
+host=localhost
+port=1402
+name=(имя БД)
+user=(имя пользователя)
+password=(пароль)
+```
