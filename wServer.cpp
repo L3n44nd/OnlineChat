@@ -45,7 +45,6 @@ void wServerClass::setupDB() {
         "senderId INTEGER NOT NULL, "
         "senderName TEXT, "
         "recipientId INTEGER, "
-        "timestamp INTEGER NOT NULL, "
         "message TEXT)"
     );
 }
@@ -71,7 +70,7 @@ void wServerClass::setupTimers() {
 
     connect(cleanUpDB, &QTimer::timeout, this, [this]() {
         QSqlQuery query;
-        query.exec("DELETE FROM history WHERE id < (SELECT id FROM history ORDER BY timestamp DESC OFFSET 999 LIMIT 1)");
+        query.exec("DELETE FROM history WHERE id < (SELECT id FROM history ORDER BY id DESC OFFSET 999 LIMIT 1)");
         });
 }
 
@@ -408,3 +407,4 @@ wServerClass::~wServerClass() {
     idToSocket.clear();
     idToName.clear();
 }
+
