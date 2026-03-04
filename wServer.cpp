@@ -338,7 +338,7 @@ void wServerClass::sendHistory(QTcpSocket* client, const QString& msg) {
             "SELECT senderId, senderName, message FROM history "
             "WHERE (senderId = :sender AND recipientId = :recipient) "
             "OR (senderId = :recipient AND recipientId = :sender) "
-            "ORDER BY timestamp"
+            "ORDER BY id"
         );
         query.bindValue(":sender", socketToId[client]);
         query.bindValue(":recipient", otherId);
@@ -349,7 +349,7 @@ void wServerClass::sendHistory(QTcpSocket* client, const QString& msg) {
         query.exec(
             "SELECT senderId, senderName, message FROM history "
             "WHERE recipientId = 0 "
-            "ORDER BY timestamp"
+            "ORDER BY id"
         );
     }
 
@@ -370,14 +370,11 @@ void wServerClass::sendHistory(QTcpSocket* client, const QString& msg) {
 }
 
 void wServerClass::saveToDB(const int senderId, const QString& senderName, const int recipientId, const QString& msg) {
-    qint64 currTime = QDateTime::currentSecsSinceEpoch();
-
     QSqlQuery query;
-    query.prepare("INSERT INTO history (senderId, senderName, recipientId, timestamp, message) VALUES (:sId, :sName, :rId, :time, :msg)");
+    query.prepare("INSERT INTO history (senderId, senderName, recipientId, message) VALUES (:sId, :sName, :rId, :msg)");
     query.bindValue(":sId", senderId);
     query.bindValue(":sName", senderName);
     query.bindValue(":rId", recipientId);
-    query.bindValue(":time", currTime);
     query.bindValue(":msg", msg);
     query.exec();
 }
@@ -407,4 +404,5 @@ wServerClass::~wServerClass() {
     idToSocket.clear();
     idToName.clear();
 }
+
 
