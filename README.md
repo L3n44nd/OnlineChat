@@ -91,7 +91,6 @@
   - список онлайна рассылается при входе и выходе
 
   Скачать сборку под Windows: https://github.com/L3n44nd/OnlineChatServer/releases/download/v1.0.1/OnlineChatServer.zip
-  
   В файле конфигурации `config.ini` прописать:  
 ```
 [DB]
@@ -101,3 +100,4 @@ name=(имя БД)
 user=(имя пользователя)
 password=(пароль)
 ```
+Или сборка с SQLite (файл БД автоматически создаётся при запуске сервера): https://github.com/L3n44nd/OnlineChatServer/releases/download/v1.0.0/OnlineChatServer.zip
