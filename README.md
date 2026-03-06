@@ -91,6 +91,7 @@
   - список онлайна рассылается при входе и выходе
 
   Скачать сборку под Windows: https://github.com/L3n44nd/OnlineChatServer/releases/download/v1.0.1/OnlineChatServer.zip
+  
   В файле конфигурации `config.ini` прописать:  
 ```
 [DB]
